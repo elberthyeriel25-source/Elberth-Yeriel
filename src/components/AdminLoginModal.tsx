@@ -112,6 +112,11 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               <input
                 ref={inputRef}
                 type={showPin ? 'text' : 'password'}
+                inputMode="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="off"
                 maxLength={32}
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}

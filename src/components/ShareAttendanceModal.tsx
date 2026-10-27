@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { AttendanceSession } from '../types';
+import { generateSessionPasscode } from '../services/syncService';
 import {
   X,
   Share2,
@@ -21,6 +22,9 @@ import {
   MapPin,
   Clock,
   ScanLine,
+  ShieldCheck,
+  RefreshCw,
+  KeyRound,
 } from 'lucide-react';
 
 interface ShareAttendanceModalProps {
@@ -29,6 +33,7 @@ interface ShareAttendanceModalProps {
   sessions: AttendanceSession[];
   currentSessionId?: string;
   onOpenMobilePreview: () => void;
+  onUpdateSession?: (session: AttendanceSession) => void;
 }
 
 export const ShareAttendanceModal: React.FC<ShareAttendanceModalProps> = ({
@@ -37,6 +42,7 @@ export const ShareAttendanceModal: React.FC<ShareAttendanceModalProps> = ({
   sessions,
   currentSessionId,
   onOpenMobilePreview,
+  onUpdateSession,
 }) => {
   const sortedSessions = [...sessions].sort((a, b) => b.date.localeCompare(a.date));
   const [selectedSessionId, setSelectedSessionId] = useState<string>(
@@ -52,25 +58,56 @@ export const ShareAttendanceModal: React.FC<ShareAttendanceModalProps> = ({
   const activeSession =
     sessions.find((s) => s.id === selectedSessionId) || sortedSessions[0];
 
+  const passcode = activeSession?.passcode || 'SB26';
+  const requirePasscode = activeSession?.requirePasscode ?? true;
+
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedPasscode, setCopiedPasscode] = useState(false);
   const [copiedMessage, setCopiedMessage] = useState(false);
 
-  // Compute absolute shareable URL including both 'sesi' and 'session' query keys
+  // Compute absolute shareable URL
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  
+  // The QR code for display in room embeds the token so members in the room get verified automatically
+  const qrTargetUrl = activeSession
+    ? `${baseUrl}/?mode=absen&sesi=${encodeURIComponent(activeSession.id)}${requirePasscode && passcode ? `&token=${encodeURIComponent(passcode)}` : ''}`
+    : `${baseUrl}/?mode=absen`;
+
+  // Standard share URL (clean link)
   const shareUrl = activeSession
     ? `${baseUrl}/?mode=absen&sesi=${encodeURIComponent(activeSession.id)}`
     : `${baseUrl}/?mode=absen`;
 
+  const handleRegeneratePasscode = () => {
+    if (!activeSession) return;
+    const newCode = generateSessionPasscode(activeSession.date);
+    const updated: AttendanceSession = {
+      ...activeSession,
+      passcode: newCode,
+      requirePasscode: true,
+    };
+    onUpdateSession?.(updated);
+  };
+
+  const handleToggleRequirePasscode = () => {
+    if (!activeSession) return;
+    const updated: AttendanceSession = {
+      ...activeSession,
+      requirePasscode: !requirePasscode,
+    };
+    onUpdateSession?.(updated);
+  };
+
   // WhatsApp invitation text
   const whatsappInvitationText = activeSession
-    ? `📢 *ABSENSI LATIHAN PADUAN SUARA* 🎶\n\nHalo rekan-rekan koor,\nSilakan mengisi absensi kehadiran mandiri untuk sesi latihan:\n\n📅 *Tanggal:* ${activeSession.date}\n🏷️ *Agenda:* ${activeSession.title}\n📍 *Lokasi:* ${activeSession.location || 'Ruang Koor'}\n${activeSession.songList ? `🎼 *Lagu:* ${activeSession.songList}\n` : ''}\n👉 *Isi Absensi di HP Anda:* ${shareUrl}\n\n_Catatan: Setiap anggota wajib mengisi melalui HP & email masing-masing. Sistem secara ketat menolak pengisian untuk anggota lain (anti-titip absen). Terima kasih!_ 🙏`
+    ? `📢 *ABSENSI LATIHAN PADUAN SUARA* 🎶\n\nHalo rekan-rekan koor,\nSilakan mengisi absensi kehadiran mandiri untuk sesi latihan:\n\n📅 *Tanggal:* ${activeSession.date}\n🏷️ *Agenda:* ${activeSession.title}\n📍 *Lokasi:* ${activeSession.location || 'Ruang Koor'}\n${activeSession.songList ? `🎼 *Lagu:* ${activeSession.songList}\n` : ''}\n👉 *Isi Absensi di HP Anda:* ${shareUrl}\n${requirePasscode ? `🔐 *Kode Hadir Hari Ini:* *${passcode}* (Atau langsung scan QR di proyektor ruangan)\n` : ''}\n_Catatan: Setiap anggota wajib mengisi melalui HP & email masing-masing. Sistem secara ketat menolak pengisian untuk anggota lain (anti-titip absen). Terima kasih!_ 🙏`
     : `📢 *ABSENSI MANDIRI KOOR*\nSilakan isi absensi latihan pribadi melalui link: ${shareUrl}`;
 
-  // Generate high-resolution QR code when shareUrl changes
+  // Generate high-resolution QR code using qrTargetUrl (contains token)
   useEffect(() => {
-    if (!shareUrl) return;
-    QRCode.toDataURL(shareUrl, {
+    if (!qrTargetUrl) return;
+    QRCode.toDataURL(qrTargetUrl, {
       width: 480,
       margin: 2,
       color: {
@@ -81,7 +118,7 @@ export const ShareAttendanceModal: React.FC<ShareAttendanceModalProps> = ({
     })
       .then((url) => setQrDataUrl(url))
       .catch((err) => console.error('Failed generating QR code:', err));
-  }, [shareUrl]);
+  }, [qrTargetUrl]);
 
   if (!isOpen) return null;
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KeyRound, ShieldCheck, X, Check, AlertCircle } from 'lucide-react';
+import { KeyRound, ShieldCheck, X, Check, AlertCircle, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { getStoredAdminPin, setStoredAdminPin } from '../services/authService';
 
 interface AdminPinSettingsModalProps {
@@ -14,6 +14,9 @@ export const AdminPinSettingsModal: React.FC<AdminPinSettingsModalProps> = ({
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [showCurrentPin, setShowCurrentPin] = useState(false);
+  const [showNewPin, setShowNewPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!isOpen) return null;
@@ -23,24 +26,26 @@ export const AdminPinSettingsModal: React.FC<AdminPinSettingsModalProps> = ({
     setMessage(null);
 
     const activePin = getStoredAdminPin();
-    if (currentPin.trim() !== activePin) {
-      setMessage({ type: 'error', text: 'PIN Lama tidak sesuai.' });
+    const curTrimmed = currentPin.trim();
+    if (curTrimmed !== activePin && curTrimmed.toLowerCase() !== activePin.toLowerCase()) {
+      setMessage({ type: 'error', text: 'PIN / Password Lama tidak sesuai.' });
       return;
     }
 
-    if (newPin.trim().length < 3) {
-      setMessage({ type: 'error', text: 'PIN Baru minimal 3 karakter (huruf/angka).' });
+    const nextPinTrimmed = newPin.trim();
+    if (nextPinTrimmed.length < 3) {
+      setMessage({ type: 'error', text: 'PIN / Password Baru minimal 3 karakter (huruf/angka).' });
       return;
     }
 
-    if (newPin.trim() !== confirmPin.trim()) {
-      setMessage({ type: 'error', text: 'Konfirmasi PIN Baru tidak sama.' });
+    if (nextPinTrimmed !== confirmPin.trim()) {
+      setMessage({ type: 'error', text: 'Konfirmasi PIN / Password Baru tidak cocok.' });
       return;
     }
 
-    const saved = setStoredAdminPin(newPin.trim());
+    const saved = setStoredAdminPin(nextPinTrimmed);
     if (saved) {
-      setMessage({ type: 'success', text: 'PIN Pengurus berhasil diperbarui!' });
+      setMessage({ type: 'success', text: 'PIN / Password Pengurus berhasil diperbarui!' });
       setTimeout(() => {
         onClose();
         setCurrentPin('');
@@ -59,7 +64,7 @@ export const AdminPinSettingsModal: React.FC<AdminPinSettingsModalProps> = ({
         <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
             <KeyRound className="w-4 h-4 text-amber-400" />
-            <h3 className="font-extrabold text-sm">Ganti PIN Pengurus</h3>
+            <h3 className="font-extrabold text-sm">Ganti PIN / Password Pengurus</h3>
           </div>
           <button
             type="button"
@@ -71,6 +76,13 @@ export const AdminPinSettingsModal: React.FC<AdminPinSettingsModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-3.5 text-xs">
+          <div className="p-2.5 bg-blue-50/80 border border-blue-200/60 rounded-xl text-[11px] text-blue-900 flex items-start gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
+            <p>
+              Bebas gunakan <strong>huruf (a-z)</strong>, <strong>angka (0-9)</strong>, atau kombinasi keduanya (contoh: <em>koor2024</em>, <em>admin choir</em>, atau <em>1234</em>).
+            </p>
+          </div>
+
           {message && (
             <div
               className={`p-3 rounded-xl border flex items-center gap-2 ${
@@ -89,41 +101,86 @@ export const AdminPinSettingsModal: React.FC<AdminPinSettingsModalProps> = ({
           )}
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">PIN Lama</label>
-            <input
-              type="text"
-              value={currentPin}
-              onChange={(e) => setCurrentPin(e.target.value)}
-              placeholder="Masukkan PIN saat ini"
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
-            />
+            <label className="block font-bold text-slate-700 mb-1">PIN / Password Lama</label>
+            <div className="relative">
+              <input
+                type={showCurrentPin ? 'text' : 'password'}
+                inputMode="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="off"
+                value={currentPin}
+                onChange={(e) => setCurrentPin(e.target.value)}
+                placeholder="Masukkan PIN saat ini"
+                required
+                className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPin(!showCurrentPin)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                tabIndex={-1}
+              >
+                {showCurrentPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <div>
             <label className="block font-bold text-slate-700 mb-1">
-              PIN Baru <span className="font-normal text-slate-400">(huruf & angka, min 3 karakter)</span>
+              PIN / Password Baru <span className="font-normal text-slate-400">(huruf & angka, min 3 karakter)</span>
             </label>
-            <input
-              type="text"
-              value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
-              placeholder="Ketik PIN baru (contoh: koor24 atau 5678)"
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
-            />
+            <div className="relative">
+              <input
+                type={showNewPin ? 'text' : 'password'}
+                inputMode="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="off"
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value)}
+                placeholder="Ketik password baru (huruf / angka)"
+                required
+                className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPin(!showNewPin)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                tabIndex={-1}
+              >
+                {showNewPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Ulangi PIN Baru</label>
-            <input
-              type="text"
-              value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value)}
-              placeholder="Ketik ulang PIN baru persis"
-              required
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
-            />
+            <label className="block font-bold text-slate-700 mb-1">Ulangi PIN / Password Baru</label>
+            <div className="relative">
+              <input
+                type={showConfirmPin ? 'text' : 'password'}
+                inputMode="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="off"
+                value={confirmPin}
+                onChange={(e) => setConfirmPin(e.target.value)}
+                placeholder="Ketik ulang password baru persis"
+                required
+                className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPin(!showConfirmPin)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                tabIndex={-1}
+              >
+                {showConfirmPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <div className="pt-2 flex gap-2">
@@ -139,7 +196,7 @@ export const AdminPinSettingsModal: React.FC<AdminPinSettingsModalProps> = ({
               className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center justify-center gap-1 shadow-xs"
             >
               <Check className="w-3.5 h-3.5" />
-              <span>Simpan PIN</span>
+              <span>Simpan Password</span>
             </button>
           </div>
         </form>

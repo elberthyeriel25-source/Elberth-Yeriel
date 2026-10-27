@@ -34,6 +34,8 @@ export interface AttendanceSession {
   songList?: string; // e.g. "Hallelujah Chorus, Ave Verum"
   records: Record<string, AttendanceRecord>; // memberId -> AttendanceRecord
   createdAt: string;
+  passcode?: string; // e.g. "SB72" (Dynamic daily verification passcode distributed by admin)
+  requirePasscode?: boolean; // whether passcode validation is strictly enforced for this session
 }
 
 export interface GoogleSheetsConfig {

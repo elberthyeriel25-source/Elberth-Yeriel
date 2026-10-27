@@ -72,6 +72,17 @@ function loadDatabase(): ServerDatabase {
       const content = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (parsed.members && parsed.sessions) {
+        let modified = false;
+        parsed.sessions.forEach((s: AttendanceSession, idx: number) => {
+          if (!s.passcode) {
+            s.passcode = `SB${(idx + 1) * 7 + 10}`;
+            s.requirePasscode = true;
+            modified = true;
+          }
+        });
+        if (modified) {
+          saveDatabase(parsed);
+        }
         return parsed;
       }
     }
@@ -141,7 +152,7 @@ async function startServer() {
   // API Route: Self-service Attendance Submission by Member via phone
   // API Route: Self-service Attendance Submission by Member via phone with Strict Anti-Proxy Integrity
   app.post('/api/attendance/self-submit', (req, res) => {
-    const { name, phone, email, voice, status, sessionId, note, deviceId } = req.body;
+    const { name, phone, email, voice, status, sessionId, note, deviceId, sessionPasscode } = req.body;
 
     // Validation: Name
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -174,6 +185,39 @@ async function startServer() {
     const attendanceStatus: AttendanceStatus = validStatuses.includes(status) ? status : 'Hadir';
 
     const formattedName = toTitleCase(name);
+
+    // Resolve Target Session early
+    let targetSession = db.sessions.find((s) => s.id === sessionId);
+    if (!targetSession) {
+      const sorted = [...db.sessions].sort((a, b) => b.date.localeCompare(a.date));
+      targetSession = sorted[0];
+    }
+    if (!targetSession) {
+      const today = new Date().toISOString().split('T')[0];
+      targetSession = {
+        id: `sess-${today}`,
+        date: today,
+        title: 'Latihan Rutin Koor',
+        location: 'Ruang Latihan Koor',
+        createdAt: new Date().toISOString(),
+        passcode: 'SB26',
+        requirePasscode: true,
+        records: {},
+      };
+      db.sessions.push(targetSession);
+    }
+
+    // Dynamic Daily Rehearsal Passcode Validation (Anti-Titip Absen dari Luar Ruangan)
+    if (targetSession.requirePasscode && targetSession.passcode) {
+      const submittedCode = (sessionPasscode || '').toString().trim().toUpperCase();
+      const expectedCode = targetSession.passcode.trim().toUpperCase();
+      if (submittedCode !== expectedCode) {
+        return res.status(403).json({
+          success: false,
+          message: `Kode Validasi Sesi tidak sesuai. Silakan minta atau lihat kode harian yang ditampilkan pengurus di ruangan latihan (${targetSession.title}).`,
+        });
+      }
+    }
 
     // ================= STRICT INTEGRITY & ANTI-PROXY VERIFICATION =================
     // Rule: "dan setiap anggota atau email yang terverifikasi tidak boleh mengisi absensi untuk anggota lain baik anggota yang baru daftar ataupun anggota yang sudah terdaftar"
@@ -323,28 +367,6 @@ async function startServer() {
         member.phone = normalizedPhone;
       }
       member.updatedAt = new Date().toISOString();
-    }
-
-    // Target session
-    let targetSession = db.sessions.find((s) => s.id === sessionId);
-    if (!targetSession) {
-      // Fallback to latest session
-      const sorted = [...db.sessions].sort((a, b) => b.date.localeCompare(a.date));
-      targetSession = sorted[0];
-    }
-
-    // If still no session exists, create a default session for today
-    if (!targetSession) {
-      const today = new Date().toISOString().split('T')[0];
-      targetSession = {
-        id: `sess-${today}`,
-        date: today,
-        title: 'Latihan Rutin Koor',
-        location: 'Ruang Latihan Koor',
-        createdAt: new Date().toISOString(),
-        records: {},
-      };
-      db.sessions.push(targetSession);
     }
 
     // Record attendance

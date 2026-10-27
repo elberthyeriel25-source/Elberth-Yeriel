@@ -36,6 +36,8 @@ import {
   RefreshCw,
   Info,
   Check,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 interface MemberAttendancePortalProps {
@@ -116,7 +118,35 @@ export const MemberAttendancePortal: React.FC<MemberAttendancePortalProps> = ({
   // Admin Unlock Dialog for legitimate reset (e.g. choir director fixing mistaken device)
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [adminPinInput, setAdminPinInput] = useState('');
+  const [showAdminPinInput, setShowAdminPinInput] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
+
+  // Dynamic Session Validation Passcode (Anti-Proxy / Physical Presence)
+  const [sessionToken, setSessionToken] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('token') || params.get('kode') || params.get('code') || '';
+    }
+    return '';
+  });
+  const [isTokenFromUrl, setIsTokenFromUrl] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return !!(params.get('token') || params.get('kode') || params.get('code'));
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlTok = params.get('token') || params.get('kode') || params.get('code');
+      if (urlTok) {
+        setSessionToken(urlTok);
+        setIsTokenFromUrl(true);
+      }
+    }
+  }, [selectedSessionId]);
 
   // Auto-lookup member when phone or email changes (only if no bound profile yet)
   useEffect(() => {
@@ -248,6 +278,22 @@ export const MemberAttendancePortal: React.FC<MemberAttendancePortalProps> = ({
       return;
     }
 
+    // 5. Dynamic Session Passcode Validation (Anti-Titip Absen dari Luar Ruangan)
+    if (activeSession.requirePasscode && activeSession.passcode) {
+      if (!sessionToken.trim()) {
+        setErrorMessage(
+          'Kode Validasi Sesi wajib diisi. Silakan minta atau lihat kode harian yang ditampilkan pengurus di ruangan latihan.'
+        );
+        return;
+      }
+      if (sessionToken.trim().toUpperCase() !== activeSession.passcode.trim().toUpperCase()) {
+        setErrorMessage(
+          `Kode Validasi Sesi tidak sesuai. Silakan periksa kode 4 digit yang dibagikan pengurus di ruangan untuk sesi "${activeSession.title}".`
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -260,6 +306,7 @@ export const MemberAttendancePortal: React.FC<MemberAttendancePortalProps> = ({
         sessionId: activeSession.id,
         note: note.trim() || undefined,
         deviceId: getDeviceFingerprintId(),
+        sessionPasscode: sessionToken.trim().toUpperCase(),
       });
 
       // Save and lock member profile locally on device so identity cannot be forged
@@ -903,6 +950,63 @@ export const MemberAttendancePortal: React.FC<MemberAttendancePortalProps> = ({
                 </div>
               </div>
 
+              {/* Dynamic Rehearsal Passcode (Anti-Proxy / Verification) */}
+              {activeSession && (activeSession.requirePasscode || activeSession.passcode) && (
+                <div>
+                  {isTokenFromUrl && sessionToken ? (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200/90 rounded-2xl flex items-center justify-between text-xs text-emerald-900 shadow-2xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                          ✓
+                        </div>
+                        <div>
+                          <div className="font-extrabold text-xs text-emerald-950 flex items-center gap-1.5">
+                            <span>Kode Ruangan Terverifikasi</span>
+                            <span className="text-[9px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded-full font-bold">
+                              Scan QR Resmi
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-emerald-700">
+                            Validasi kehadiran di ruangan latihan aktif
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-mono font-black text-sm bg-white px-2.5 py-1 rounded-xl border border-emerald-300 text-emerald-900 tracking-widest shadow-2xs">
+                        {sessionToken}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-3.5 space-y-2">
+                      <label className="block text-xs font-bold text-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-amber-600" />
+                          <span>Kode Validasi Latihan: <span className="text-rose-500">*</span></span>
+                        </span>
+                        <span className="text-[10px] text-amber-800 font-bold bg-amber-200/60 px-2 py-0.5 rounded-full">
+                          Anti-Titip Absen
+                        </span>
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="text"
+                        autoCapitalize="characters"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        maxLength={10}
+                        placeholder="Ketik kode 4 karakter dari pengurus di ruangan..."
+                        value={sessionToken}
+                        onChange={(e) => setSessionToken(e.target.value.toUpperCase())}
+                        required
+                        className="w-full px-3.5 py-2.5 bg-white border border-amber-300 rounded-xl text-center font-mono font-black tracking-widest text-sm text-slate-800 uppercase focus:outline-hidden focus:ring-2 focus:ring-amber-500/30"
+                      />
+                      <p className="text-[10px] text-slate-500 leading-snug">
+                        🛡️ Masukkan kode yang ditampilkan pengurus di ruangan / layar latihan hari ini. Anggota yang tidak berada di ruangan tidak dapat mengisi absensi.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Note / Reason Field */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
@@ -993,15 +1097,30 @@ export const MemberAttendancePortal: React.FC<MemberAttendancePortalProps> = ({
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     PIN Pengurus / Developer
                   </label>
-                  <input
-                    type="password"
-                    placeholder="Masukkan PIN Pengurus..."
-                    value={adminPinInput}
-                    onChange={(e) => setAdminPinInput(e.target.value)}
-                    required
-                    autoFocus
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showAdminPinInput ? 'text' : 'password'}
+                      inputMode="text"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      autoComplete="off"
+                      placeholder="Masukkan PIN (huruf / angka)..."
+                      value={adminPinInput}
+                      onChange={(e) => setAdminPinInput(e.target.value)}
+                      required
+                      autoFocus
+                      className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPinInput(!showAdminPinInput)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                      tabIndex={-1}
+                    >
+                      {showAdminPinInput ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">

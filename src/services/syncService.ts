@@ -337,6 +337,27 @@ export const fetchServerData = async (): Promise<{
 };
 
 /**
+ * Helper to generate or format dynamic session passcode (e.g. "SB84")
+ */
+export const generateSessionPasscode = (dateString?: string): string => {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // exclude ambiguous O, 0, I, 1
+  let code = '';
+  // If date is given and is Saturday, prefix with SB, else KR
+  let prefix = 'SB';
+  if (dateString) {
+    const d = new Date(dateString);
+    if (!isNaN(d.getTime()) && d.getDay() !== 6) {
+      prefix = 'KR';
+    }
+  }
+  for (let i = 0; i < 2; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const randomDigits = Math.floor(10 + Math.random() * 90);
+  return `${prefix}${code.charAt(0)}${randomDigits}`;
+};
+
+/**
  * Submits self attendance from member's phone
  */
 export interface SelfAttendancePayload {
@@ -348,6 +369,7 @@ export interface SelfAttendancePayload {
   sessionId?: string;
   note?: string;
   deviceId?: string;
+  sessionPasscode?: string;
 }
 
 export interface SelfAttendanceResponse {

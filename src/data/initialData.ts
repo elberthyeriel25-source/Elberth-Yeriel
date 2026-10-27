@@ -99,6 +99,8 @@ export const INITIAL_SESSIONS: AttendanceSession[] = [
     location: 'Ruang Koor Utama / Gereja',
     songList: 'Panis Angelicus, Ave Verum Corpus',
     createdAt: '2026-10-11T17:00:00.000Z',
+    passcode: 'SB11',
+    requirePasscode: true,
     records: {
       A001: { memberId: 'A001', status: 'Hadir', note: 'Tepat waktu' },
       A002: { memberId: 'A002', status: 'Hadir', note: 'Tepat waktu' },
@@ -117,6 +119,8 @@ export const INITIAL_SESSIONS: AttendanceSession[] = [
     location: 'Ruang Koor Utama / Gereja',
     songList: 'Hallelujah Chorus (Handel), The Lord Bless You',
     createdAt: '2026-10-18T17:00:00.000Z',
+    passcode: 'SB18',
+    requirePasscode: true,
     records: {
       A001: { memberId: 'A001', status: 'Hadir', note: 'Tepat waktu' },
       A002: { memberId: 'A002', status: 'Hadir', note: 'Tepat waktu' },
@@ -135,6 +139,8 @@ export const INITIAL_SESSIONS: AttendanceSession[] = [
     location: 'Balkon Paduan Suara',
     songList: 'Gloria in Excelsis Deo, Cantate Domino',
     createdAt: '2026-10-25T17:00:00.000Z',
+    passcode: 'SB25',
+    requirePasscode: true,
     records: {
       A001: { memberId: 'A001', status: 'Hadir', note: 'Tepat waktu' },
       A002: { memberId: 'A002', status: 'Hadir', note: 'Tepat waktu' },
