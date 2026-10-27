@@ -1,0 +1,8 @@
+{
+  "name": "Absensi Koor ",
+  "description": "Aplikasi manajemen data anggota dan absensi latihan paduan suara dengan pengeditan real-time dan sinkronisasi otomatis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
