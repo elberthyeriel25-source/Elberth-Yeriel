@@ -79,7 +79,7 @@ export const AdminPinSettingsModal: React.FC<AdminPinSettingsModalProps> = ({
           <div className="p-2.5 bg-blue-50/80 border border-blue-200/60 rounded-xl text-[11px] text-blue-900 flex items-start gap-2">
             <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
             <p>
-              Bebas gunakan <strong>huruf (a-z)</strong>, <strong>angka (0-9)</strong>, atau kombinasi keduanya (contoh: <em>koor2024</em>, <em>admin choir</em>, atau <em>1234</em>).
+              Bebas gunakan <strong>huruf (a-z)</strong>, <strong>angka (0-9)</strong>, atau kombinasi keduanya (contoh: <em>koor2024</em> atau <em>1234</em>). Password ini otomatis tersinkronisasi ke <strong>seluruh HP & perangkat</strong> via Cloud Database!
             </p>
           </div>
 

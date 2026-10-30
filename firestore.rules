@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function for valid document IDs
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Members collection
+    match /members/{memberId} {
+      allow read: if isValidId(memberId);
+      allow create, update: if isValidId(memberId) && request.resource.data.name is string;
+      allow delete: if isValidId(memberId);
+    }
+
+    // Attendance sessions collection
+    match /sessions/{sessionId} {
+      allow read: if isValidId(sessionId);
+      allow create, update: if isValidId(sessionId) && request.resource.data.title is string;
+      allow delete: if isValidId(sessionId);
+    }
+
+    // Application settings (e.g., synchronized Admin PIN)
+    match /settings/{settingId} {
+      allow read: if isValidId(settingId);
+      allow create, update: if isValidId(settingId);
+      allow delete: if false;
+    }
+
+    // Activity logs
+    match /logs/{logId} {
+      allow read: if isValidId(logId);
+      allow create: if isValidId(logId);
+      allow update, delete: if false;
+    }
+
+    // Fallback deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

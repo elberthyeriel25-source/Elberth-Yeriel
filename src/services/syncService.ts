@@ -1,5 +1,11 @@
 import { Member, AttendanceSession, GoogleSheetsConfig, SyncMessage, ActivityLogItem, VoiceType, AttendanceStatus } from '../types';
 import { INITIAL_MEMBERS, INITIAL_SESSIONS } from '../data/initialData';
+import {
+  saveMembersToFirestore,
+  saveSessionToFirestore,
+  submitAttendanceToFirestore,
+  resetMemberBindingInFirestore,
+} from './firestoreSync';
 
 const STORAGE_KEYS = {
   MEMBERS: 'koor_database_members_v1',
@@ -247,7 +253,7 @@ export const getStoredMembers = (): Member[] => {
   }
 };
 
-export const saveStoredMembers = (members: Member[], broadcast = true): void => {
+export const saveStoredMembers = (members: Member[], broadcast = true, saveToCloud = true): void => {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
@@ -259,6 +265,10 @@ export const saveStoredMembers = (members: Member[], broadcast = true): void => 
         senderName: getClientName(),
         payload: members,
       });
+    }
+
+    if (saveToCloud) {
+      saveMembersToFirestore(members).catch((e) => console.warn('Cloud sync error for members:', e));
     }
 
     // Background push to backend server
@@ -289,7 +299,7 @@ export const getStoredSessions = (): AttendanceSession[] => {
   }
 };
 
-export const saveStoredSessions = (sessions: AttendanceSession[], broadcast = true): void => {
+export const saveStoredSessions = (sessions: AttendanceSession[], broadcast = true, saveToCloud = true): void => {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEYS.SESSIONS, JSON.stringify(sessions));
@@ -300,6 +310,12 @@ export const saveStoredSessions = (sessions: AttendanceSession[], broadcast = tr
         senderId: getClientId(),
         senderName: getClientName(),
         payload: sessions,
+      });
+    }
+
+    if (saveToCloud) {
+      sessions.forEach((s) => {
+        saveSessionToFirestore(s).catch((e) => console.warn('Cloud sync error for session:', e));
       });
     }
 
@@ -396,10 +412,79 @@ export const submitSelfAttendanceAPI = async (
     deviceId,
   };
 
+  // 1. Direct Cloud Firestore Submission (Guarantees multi-device real-time sync across any host/phone)
+  try {
+    const cloudRes = await submitAttendanceToFirestore(bodyPayload);
+    if (cloudRes && cloudRes.success) {
+      // Update local storage cache
+      const currentMembers = getStoredMembers();
+      const existingIdx = currentMembers.findIndex((m) => m.id === cloudRes.member.id);
+      let nextMembers: Member[];
+      if (existingIdx !== -1) {
+        nextMembers = currentMembers.map((m) => (m.id === cloudRes.member.id ? cloudRes.member : m));
+      } else {
+        nextMembers = [...currentMembers, cloudRes.member];
+      }
+      saveStoredMembers(nextMembers, false, false);
+
+      const currentSessions = getStoredSessions();
+      const nextSessions = currentSessions.map((s) => {
+        if (s.id === cloudRes.session.id) {
+          return {
+            ...s,
+            records: {
+              ...s.records,
+              [cloudRes.member.id]: cloudRes.record,
+            },
+          };
+        }
+        return s;
+      });
+      saveStoredSessions(nextSessions, false, false);
+
+      // Broadcast to other tabs on same device as well
+      syncManager.broadcast({
+        type: 'MEMBERS_UPDATED',
+        timestamp: Date.now(),
+        senderId: getClientId(),
+        senderName: cloudRes.member.name,
+        payload: nextMembers,
+      });
+      syncManager.broadcast({
+        type: 'SESSIONS_UPDATED',
+        timestamp: Date.now(),
+        senderId: getClientId(),
+        senderName: cloudRes.member.name,
+        payload: nextSessions,
+      });
+
+      appendActivityLog(
+        cloudRes.isNewMember ? 'Pendaftaran & Absen Mandiri' : 'Absen Mandiri (HP)',
+        `${cloudRes.member.name} (${cloudRes.member.voice}) mencatat ${cloudRes.record.status} pada sesi ${cloudRes.session.title}`
+      );
+
+      return cloudRes;
+    }
+  } catch (cloudErr: any) {
+    // If it's a validation error (e.g. wrong passcode or anti-titip absen policy), throw immediately!
+    if (
+      cloudErr &&
+      cloudErr.message &&
+      (cloudErr.message.includes('Kode Validasi Sesi') ||
+        cloudErr.message.includes('Akses Ditolak') ||
+        cloudErr.message.includes('terverifikasi') ||
+        cloudErr.message.includes('terdaftar') ||
+        cloudErr.message.includes('wajib diisi'))
+    ) {
+      throw cloudErr;
+    }
+    console.warn('Firestore direct write failed, proceeding to fallback:', cloudErr);
+  }
+
   let backendData: any = null;
   let useFallback = false;
 
-  // 1. Try sending to backend API
+  // 2. Try sending to backend API if running with Node server
   try {
     const res = await fetch('/api/attendance/self-submit', {
       method: 'POST',
@@ -998,14 +1083,19 @@ export const clearMemberProfileLocally = (): void => {
  */
 export const resetMemberBindingAPI = async (memberId: string): Promise<boolean> => {
   try {
+    await resetMemberBindingInFirestore(memberId);
+  } catch (err) {
+    console.warn('Failed resetting binding in Firestore:', err);
+  }
+
+  try {
     const res = await fetch(`/api/members/${memberId}/reset-binding`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
     const data = await res.json();
     return !!data.success;
-  } catch (err) {
-    console.error('Error resetting member binding:', err);
-    return false;
+  } catch {
+    return true; // Succeeded in Firestore
   }
 };

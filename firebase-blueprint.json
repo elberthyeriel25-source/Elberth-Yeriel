@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "Member": {
+      "title": "Member",
+      "description": "Choir member identity and contact information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "voice": { "type": "string", "enum": ["Sopran", "Alto", "Tenor", "Bass"] },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "verifiedEmail": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "verifiedAt": { "type": "string" },
+        "notes": { "type": "string" },
+        "joinDate": { "type": "string" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "voice", "phone", "active"]
+    },
+    "AttendanceSession": {
+      "title": "AttendanceSession",
+      "description": "Choir practice rehearsal attendance session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "title": { "type": "string" },
+        "location": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "passcode": { "type": "string" },
+        "requirePasscode": { "type": "boolean" },
+        "records": { "type": "object" }
+      },
+      "required": ["id", "date", "title", "records"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Global choir application settings including cloud admin PIN",
+      "type": "object",
+      "properties": {
+        "adminPin": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["adminPin"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit and activity log item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "user": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "action", "details"]
+    }
+  },
+  "firestore": {
+    "/members/{memberId}": {
+      "schema": "Member",
+      "description": "Choir members roster collection"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "AttendanceSession",
+      "description": "Rehearsal attendance sessions"
+    },
+    "/settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "Application settings and security PIN"
+    },
+    "/logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Activity audit logs"
+    }
+  }
+}

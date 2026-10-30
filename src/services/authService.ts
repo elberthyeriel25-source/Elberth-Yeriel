@@ -1,36 +1,49 @@
 /**
  * Authentication & Role Management for Developer/Admin vs Choir Member (User)
+ * Backed by Firebase Firestore for Instant Multi-Device Synchronization
  */
+import { getCachedCloudAdminPin, saveAdminPinToFirestore } from './firestoreSync';
 
 const STORAGE_KEYS = {
   ADMIN_PIN: 'koor_admin_pin_v1',
   ADMIN_AUTH_TOKEN: 'koor_admin_auth_token_v1',
 };
 
-// Default PIN for initial setup (supports alphanumeric characters, e.g. letters and numbers)
 const DEFAULT_PIN = '1234';
 
 export const getStoredAdminPin = (): string => {
-  if (typeof window === 'undefined') return DEFAULT_PIN;
+  // First check synced cloud PIN
+  const cloudPin = getCachedCloudAdminPin();
+  if (cloudPin && cloudPin !== DEFAULT_PIN) {
+    return cloudPin;
+  }
+
+  if (typeof window === 'undefined') return cloudPin || DEFAULT_PIN;
   try {
     const pin = localStorage.getItem(STORAGE_KEYS.ADMIN_PIN);
-    return pin || DEFAULT_PIN;
+    return pin || cloudPin || DEFAULT_PIN;
   } catch {
-    return DEFAULT_PIN;
+    return cloudPin || DEFAULT_PIN;
   }
 };
 
 export const setStoredAdminPin = (newPin: string): boolean => {
-  if (typeof window === 'undefined') return false;
-  try {
-    const trimmed = newPin.trim();
-    // Allow alphanumeric PIN of at least 3 characters
-    if (trimmed.length < 3) return false;
-    localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, trimmed);
-    return true;
-  } catch {
-    return false;
+  const trimmed = newPin.trim();
+  if (trimmed.length < 3) return false;
+
+  // Persist locally
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, trimmed);
+    } catch {}
   }
+
+  // Persist to Cloud Firestore so all phones/devices receive the update instantly
+  saveAdminPinToFirestore(trimmed).catch((err) => {
+    console.warn('Failed to push PIN update to Firestore:', err);
+  });
+
+  return true;
 };
 
 export const checkIsAdminLoggedIn = (): boolean => {
@@ -46,9 +59,14 @@ export const checkIsAdminLoggedIn = (): boolean => {
 export const loginAdmin = (inputPin: string): boolean => {
   if (typeof window === 'undefined') return false;
   const currentPin = getStoredAdminPin().trim();
+  const cloudPin = getCachedCloudAdminPin().trim();
   const input = inputPin.trim();
-  // Support exact match or case-insensitive match for ease of typing on mobile
-  if (input === currentPin || input.toLowerCase() === currentPin.toLowerCase()) {
+
+  // Match against current local PIN, cloud PIN, or default PIN
+  const matches = (target: string) =>
+    target && (input === target || input.toLowerCase() === target.toLowerCase());
+
+  if (matches(currentPin) || matches(cloudPin)) {
     sessionStorage.setItem(STORAGE_KEYS.ADMIN_AUTH_TOKEN, 'authenticated_admin_session');
     return true;
   }

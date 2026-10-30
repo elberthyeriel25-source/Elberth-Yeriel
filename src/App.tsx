@@ -29,7 +29,13 @@ import { AdminPinSettingsModal } from './components/AdminPinSettingsModal';
 import { checkIsAdminLoggedIn, logoutAdmin } from './services/authService';
 import { fetchServerData } from './services/syncService';
 import { pushDataToGoogleSheets, getAccessToken } from './services/googleSheetsService';
-import { Bell, CheckCircle2, X, ShieldAlert, Lock } from 'lucide-react';
+import {
+  initFirestoreSync,
+  deleteMembersFromFirestore,
+  deleteSessionFromFirestore,
+  saveSessionToFirestore,
+} from './services/firestoreSync';
+import { Bell, CheckCircle2, X, ShieldAlert, Lock, Cloud, CloudCheck } from 'lucide-react';
 
 export default function App() {
   const [members, setMembers] = useState<Member[]>(() => getStoredMembers());
@@ -210,7 +216,52 @@ export default function App() {
     };
   }, []);
 
-  // Poll backend server for remote member attendance submissions
+  // Multi-Device Real-Time Cloud Synchronization via Firebase Firestore
+  // Ensures every phone/computer sees the exact same data in real time!
+  useEffect(() => {
+    const unsubFirestore = initFirestoreSync({
+      onMembersChange: (cloudMembers) => {
+        if (cloudMembers && cloudMembers.length > 0) {
+          setMembers((prevMembers) => {
+            if (prevMembers.length > 0 && cloudMembers.length > prevMembers.length) {
+              const newest = cloudMembers[cloudMembers.length - 1];
+              setRemoteNotification({
+                name: newest.name,
+                voice: newest.voice,
+                status: 'Terdaftar & Hadir',
+                isNew: true,
+              });
+              setTimeout(() => setRemoteNotification(null), 5000);
+            }
+            return cloudMembers;
+          });
+          saveStoredMembers(cloudMembers, false, false);
+          setSyncStatus('synced');
+          setLastSavedText(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+        }
+      },
+      onSessionsChange: (cloudSessions) => {
+        if (cloudSessions && cloudSessions.length > 0) {
+          setSessions(cloudSessions);
+          saveStoredSessions(cloudSessions, false, false);
+          setSyncStatus('synced');
+          setLastSavedText(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+        }
+      },
+      onAdminPinChange: (_cloudPin) => {
+        // Cached cloud PIN is automatically updated in authService
+      },
+      onLogsChange: (cloudLogs) => {
+        if (cloudLogs && cloudLogs.length > 0) {
+          setLogs(cloudLogs);
+        }
+      },
+    });
+
+    return () => unsubFirestore();
+  }, []);
+
+  // Poll backend server for remote member attendance submissions (fallback for local dev)
   useEffect(() => {
     let isMounted = true;
     const pollServer = async () => {
@@ -317,6 +368,7 @@ export default function App() {
     const nextMembers = members.filter((m) => !ids.includes(m.id));
     setMembers(nextMembers);
     saveStoredMembers(nextMembers);
+    deleteMembersFromFirestore(ids).catch((err) => console.warn('Failed deleting from Firestore:', err));
 
     appendActivityLog('Hapus Anggota', `${ids.length} anggota dihapus.`);
     setLogs(getStoredLogs());
@@ -378,6 +430,7 @@ export default function App() {
     const nextSessions = [...sessions, newSession];
     setSessions(nextSessions);
     saveStoredSessions(nextSessions);
+    saveSessionToFirestore(newSession).catch((err) => console.warn('Failed saving session to Firestore:', err));
 
     appendActivityLog('Tambah Jadwal', `Sesi latihan tanggal ${newSession.date} ("${newSession.title}") dibuat.`);
     setLogs(getStoredLogs());
@@ -399,6 +452,7 @@ export default function App() {
     const nextSessions = sessions.filter((s) => s.id !== sessionId);
     setSessions(nextSessions);
     saveStoredSessions(nextSessions);
+    deleteSessionFromFirestore(sessionId).catch((err) => console.warn('Failed deleting session from Firestore:', err));
 
     appendActivityLog('Hapus Jadwal', `Sesi latihan tanggal ${target?.date || ''} dihapus.`);
     setLogs(getStoredLogs());
