@@ -447,6 +447,26 @@ export default function App() {
     triggerAutoCloudSync(members, nextSessions);
   };
 
+  // Update existing session (e.g. passcode or details)
+  const handleUpdateSession = (updated: AttendanceSession) => {
+    pushUndoSnapshot();
+    setSyncStatus('syncing');
+
+    const nextSessions = sessions.map((s) => (s.id === updated.id ? updated : s));
+    setSessions(nextSessions);
+    saveStoredSessions(nextSessions);
+
+    appendActivityLog('Update Sesi', `Sesi ${updated.date} (${updated.title}) diperbarui.`);
+    setLogs(getStoredLogs());
+
+    setTimeout(() => {
+      setSyncStatus('synced');
+      setLastSavedText(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+    }, 400);
+
+    triggerAutoCloudSync(members, nextSessions);
+  };
+
   // Import members
   const handleImportMembers = (imported: Member[]) => {
     pushUndoSnapshot();
@@ -841,6 +861,7 @@ export default function App() {
         onClose={() => setIsShareModalOpen(false)}
         sessions={sessions}
         currentSessionId={shareModalSessionId}
+        onUpdateSession={handleUpdateSession}
         onOpenMobilePreview={() => {
           setIsShareModalOpen(false);
           setCurrentView('member-portal');

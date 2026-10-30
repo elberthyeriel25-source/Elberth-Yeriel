@@ -227,6 +227,31 @@ export const ShareAttendanceModal: React.FC<ShareAttendanceModalProps> = ({
               <ScanLine className="w-4 h-4 text-blue-600" />
               <span>Arahkan Kamera HP ke QR Ini untuk Absen</span>
             </div>
+
+            {requirePasscode && passcode && (
+              <div className="mt-4 w-full p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-900">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-200/80 flex items-center justify-center text-amber-800 shrink-0">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-[10px] uppercase tracking-wider font-extrabold text-amber-700">
+                      Kode Ruangan Latihan Hari Ini (Anti-Titip Absen)
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black font-mono tracking-widest text-amber-900">
+                      {passcode}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-600 text-left sm:text-right">
+                  <span className="font-semibold">Otomatis terisi jika scan QR di atas.</span>
+                  <div className="text-[10px] text-slate-500">
+                    Anggota di luar ruangan tanpa kode tidak bisa titip absen.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <p className="mt-6 text-slate-300 text-sm max-w-md">
@@ -406,6 +431,89 @@ export const ShareAttendanceModal: React.FC<ShareAttendanceModalProps> = ({
             </div>
             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 font-mono text-[11px] text-slate-800 select-all overflow-x-auto">
               <span className="truncate">{shareUrl}</span>
+            </div>
+          </div>
+
+          {/* Dynamic Daily Passcode Control (Anti-Titip Absen) */}
+          <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/90 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-950 font-bold text-xs">
+                <div className="w-7 h-7 rounded-lg bg-amber-200 flex items-center justify-center text-amber-900">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <div>
+                  <span>Kode Validasi Kehadiran Sesi</span>
+                  <span className="block text-[10px] text-amber-700 font-normal">
+                    Mekanisme Anti-Titip Absen dari luar ruangan latihan
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRegeneratePasscode}
+                  className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs"
+                  title="Buat kode acak baru untuk sesi ini"
+                >
+                  <RefreshCw className="w-3 h-3 text-amber-600" />
+                  <span>Acak Baru</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(passcode);
+                    setCopiedPasscode(true);
+                    setTimeout(() => setCopiedPasscode(false), 2000);
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-2xs"
+                >
+                  {copiedPasscode ? (
+                    <>
+                      <Check className="w-3 h-3" />
+                      <span>Tersalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>Salin</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-200">
+              <div className="flex items-center gap-3">
+                <div className="px-3 py-1.5 bg-amber-100/90 text-amber-950 font-mono text-xl font-black rounded-lg tracking-widest border border-amber-300">
+                  {passcode}
+                </div>
+                <div className="text-[11px] text-slate-600">
+                  <div className="font-semibold text-slate-800">
+                    {requirePasscode ? 'Wajib Dimasukkan Anggota' : 'Opsional (Tidak Diwajibkan)'}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    Kode ini otomatis tersemat dalam QR proyektor
+                  </div>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+                <input
+                  type="checkbox"
+                  checked={requirePasscode}
+                  onChange={handleToggleRequirePasscode}
+                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span>Wajibkan Kode</span>
+              </label>
+            </div>
+
+            <div className="text-[10px] text-amber-800 leading-relaxed bg-amber-100/60 p-2.5 rounded-lg border border-amber-200/50 flex items-start gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <span>
+                <strong>Keamanan Anti-Titip Absen:</strong> Anggota yang hadir langsung di ruangan dan memindai QR proyektor akan otomatis lolos verifikasi tanpa mengetik kode. Anggota yang mencoba absen dari rumah harus tahu kode 4 digit ini dari pengurus di ruangan latihan.
+              </span>
             </div>
           </div>
 

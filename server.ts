@@ -149,265 +149,272 @@ async function startServer() {
     res.json({ session: sorted[0], allSessions: sorted });
   });
 
-  // API Route: Self-service Attendance Submission by Member via phone
   // API Route: Self-service Attendance Submission by Member via phone with Strict Anti-Proxy Integrity
   app.post('/api/attendance/self-submit', (req, res) => {
-    const { name, phone, email, voice, status, sessionId, note, deviceId, sessionPasscode } = req.body;
+    try {
+      const { name, phone, email, voice, status, sessionId, note, deviceId, sessionPasscode } = req.body;
 
-    // Validation: Name
-    if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nama lengkap harus diisi (minimal 2 karakter).',
-      });
-    }
-
-    // Validation: Phone
-    const normalizedPhone = normalizeIndonesianPhone(phone || '');
-    if (!normalizedPhone || normalizedPhone.length < 9 || normalizedPhone.length > 15) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nomor WhatsApp tidak valid. Masukkan nomor WhatsApp yang benar (contoh: 081234567890).',
-      });
-    }
-
-    // Validation: Email (Required for Identity Binding & Verification)
-    const normalizedEmail = normalizeEmail(email || '');
-    if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Alamat email wajib diisi dengan format yang benar untuk verifikasi identitas unik Anda (contoh: nama@email.com).',
-      });
-    }
-
-    // Validation: Status
-    const validStatuses: AttendanceStatus[] = ['Hadir', 'Izin', 'Sakit', 'Alpa'];
-    const attendanceStatus: AttendanceStatus = validStatuses.includes(status) ? status : 'Hadir';
-
-    const formattedName = toTitleCase(name);
-
-    // Resolve Target Session early
-    let targetSession = db.sessions.find((s) => s.id === sessionId);
-    if (!targetSession) {
-      const sorted = [...db.sessions].sort((a, b) => b.date.localeCompare(a.date));
-      targetSession = sorted[0];
-    }
-    if (!targetSession) {
-      const today = new Date().toISOString().split('T')[0];
-      targetSession = {
-        id: `sess-${today}`,
-        date: today,
-        title: 'Latihan Rutin Koor',
-        location: 'Ruang Latihan Koor',
-        createdAt: new Date().toISOString(),
-        passcode: 'SB26',
-        requirePasscode: true,
-        records: {},
-      };
-      db.sessions.push(targetSession);
-    }
-
-    // Dynamic Daily Rehearsal Passcode Validation (Anti-Titip Absen dari Luar Ruangan)
-    if (targetSession.requirePasscode && targetSession.passcode) {
-      const submittedCode = (sessionPasscode || '').toString().trim().toUpperCase();
-      const expectedCode = targetSession.passcode.trim().toUpperCase();
-      if (submittedCode !== expectedCode) {
-        return res.status(403).json({
+      // Validation: Name
+      if (!name || typeof name !== 'string' || name.trim().length < 2) {
+        return res.status(400).json({
           success: false,
-          message: `Kode Validasi Sesi tidak sesuai. Silakan minta atau lihat kode harian yang ditampilkan pengurus di ruangan latihan (${targetSession.title}).`,
+          message: 'Nama lengkap harus diisi (minimal 2 karakter).',
         });
       }
-    }
 
-    // ================= STRICT INTEGRITY & ANTI-PROXY VERIFICATION =================
-    // Rule: "dan setiap anggota atau email yang terverifikasi tidak boleh mengisi absensi untuk anggota lain baik anggota yang baru daftar ataupun anggota yang sudah terdaftar"
+      // Validation: Phone
+      const normalizedPhone = normalizeIndonesianPhone(phone || '');
+      if (!normalizedPhone || normalizedPhone.length < 9 || normalizedPhone.length > 15) {
+        return res.status(400).json({
+          success: false,
+          message: 'Nomor WhatsApp tidak valid. Masukkan nomor WhatsApp yang benar (contoh: 081234567890).',
+        });
+      }
 
-    // 1. Device Identity Binding Check
-    // If this device was already bound to a verified member, block any attempt to fill for another person!
-    if (deviceId) {
-      const boundByDevice = db.members.find(
-        (m) => m.deviceId && m.deviceId === deviceId
+      // Validation: Email (Required for Identity Binding & Verification)
+      const normalizedEmail = normalizeEmail(email || '');
+      if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Alamat email wajib diisi dengan format yang benar untuk verifikasi identitas unik Anda (contoh: nama@email.com).',
+        });
+      }
+
+      // Validation: Status
+      const validStatuses: AttendanceStatus[] = ['Hadir', 'Izin', 'Sakit', 'Alpa'];
+      const attendanceStatus: AttendanceStatus = validStatuses.includes(status) ? status : 'Hadir';
+
+      const formattedName = toTitleCase(name);
+
+      // Resolve Target Session early
+      let targetSession = db.sessions.find((s) => s.id === sessionId);
+      if (!targetSession) {
+        const sorted = [...db.sessions].sort((a, b) => b.date.localeCompare(a.date));
+        targetSession = sorted[0];
+      }
+      if (!targetSession) {
+        const today = new Date().toISOString().split('T')[0];
+        targetSession = {
+          id: `sess-${today}`,
+          date: today,
+          title: 'Latihan Rutin Koor',
+          location: 'Ruang Latihan Koor',
+          createdAt: new Date().toISOString(),
+          passcode: 'SB26',
+          requirePasscode: true,
+          records: {},
+        };
+        db.sessions.push(targetSession);
+      }
+
+      // Dynamic Daily Rehearsal Passcode Validation (Anti-Titip Absen dari Luar Ruangan)
+      if (targetSession.requirePasscode && targetSession.passcode) {
+        const submittedCode = (sessionPasscode || '').toString().trim().toUpperCase();
+        const expectedCode = targetSession.passcode.trim().toUpperCase();
+        if (submittedCode !== expectedCode) {
+          return res.status(403).json({
+            success: false,
+            message: `Kode Validasi Sesi tidak sesuai. Silakan minta atau lihat kode harian yang ditampilkan pengurus di ruangan latihan (${targetSession.title}).`,
+          });
+        }
+      }
+
+      // ================= STRICT INTEGRITY & ANTI-PROXY VERIFICATION =================
+      // Rule: "dan setiap anggota atau email yang terverifikasi tidak boleh mengisi absensi untuk anggota lain baik anggota yang baru daftar ataupun anggota yang sudah terdaftar"
+
+      // 1. Device Identity Binding Check
+      // If this device was already bound to a verified member, block any attempt to fill for another person!
+      if (deviceId) {
+        const boundByDevice = db.members.find(
+          (m) => m.deviceId && m.deviceId === deviceId
+        );
+
+        if (boundByDevice) {
+          // Must match bound member's identity
+          const isSamePhone = normalizeIndonesianPhone(boundByDevice.phone) === normalizedPhone;
+          const isSameName = boundByDevice.name.toLowerCase().trim() === formattedName.toLowerCase().trim();
+          const isSameEmail = boundByDevice.email ? normalizeEmail(boundByDevice.email) === normalizedEmail : true;
+
+          if (!isSamePhone || !isSameName || !isSameEmail) {
+            return res.status(403).json({
+              success: false,
+              message: `Akses Ditolak: Perangkat ini sudah terikat dengan ${boundByDevice.name}. Sesuai kebijakan kejujuran paduan suara, Anda dilarang mengisi absensi untuk anggota lain (titip absen), baik anggota yang sudah terdaftar maupun mendaftarkan anggota baru.`,
+            });
+          }
+        }
+      }
+
+      // 2. Verified Email Binding Check
+      // If this email is already registered to another member, it cannot be used by someone else!
+      const boundByEmail = db.members.find(
+        (m) =>
+          (m.email && normalizeEmail(m.email) === normalizedEmail) ||
+          (m.verifiedEmail && normalizeEmail(m.verifiedEmail) === normalizedEmail)
       );
 
-      if (boundByDevice) {
-        // Must match bound member's identity
-        const isSamePhone = normalizeIndonesianPhone(boundByDevice.phone) === normalizedPhone;
-        const isSameName = boundByDevice.name.toLowerCase().trim() === formattedName.toLowerCase().trim();
-        const isSameEmail = boundByDevice.email ? normalizeEmail(boundByDevice.email) === normalizedEmail : true;
+      if (boundByEmail) {
+        const isSamePhone = normalizeIndonesianPhone(boundByEmail.phone) === normalizedPhone;
+        const isSameName = boundByEmail.name.toLowerCase().trim() === formattedName.toLowerCase().trim();
 
-        if (!isSamePhone || !isSameName || !isSameEmail) {
+        if (!isSamePhone || !isSameName) {
           return res.status(403).json({
             success: false,
-            message: `Akses Ditolak: Perangkat ini sudah terikat dengan ${boundByDevice.name}. Sesuai kebijakan kejujuran paduan suara, Anda dilarang mengisi absensi untuk anggota lain (titip absen), baik anggota yang sudah terdaftar maupun mendaftarkan anggota baru.`,
-          });
-        }
-      }
-    }
-
-    // 2. Verified Email Binding Check
-    // If this email is already registered to another member, it cannot be used by someone else!
-    const boundByEmail = db.members.find(
-      (m) =>
-        (m.email && normalizeEmail(m.email) === normalizedEmail) ||
-        (m.verifiedEmail && normalizeEmail(m.verifiedEmail) === normalizedEmail)
-    );
-
-    if (boundByEmail) {
-      const isSamePhone = normalizeIndonesianPhone(boundByEmail.phone) === normalizedPhone;
-      const isSameName = boundByEmail.name.toLowerCase().trim() === formattedName.toLowerCase().trim();
-
-      if (!isSamePhone || !isSameName) {
-        return res.status(403).json({
-          success: false,
-          message: `Email '${normalizedEmail}' telah terverifikasi atas nama ${boundByEmail.name}. Email terverifikasi tidak boleh digunakan untuk mengisi absensi anggota lain.`,
-        });
-      }
-    }
-
-    // 3. Phone Binding Check
-    const boundByPhone = db.members.find(
-      (m) => normalizeIndonesianPhone(m.phone) === normalizedPhone
-    );
-
-    if (boundByPhone) {
-      const isSameName = boundByPhone.name.toLowerCase().trim() === formattedName.toLowerCase().trim();
-      if (!isSameName) {
-        return res.status(403).json({
-          success: false,
-          message: `Nomor WhatsApp ${normalizedPhone} sudah terdaftar atas nama ${boundByPhone.name}. Pengisian absensi untuk anggota lain tidak diizinkan.`,
-        });
-      }
-
-      if (boundByPhone.email && normalizeEmail(boundByPhone.email) !== normalizedEmail) {
-        return res.status(403).json({
-          success: false,
-          message: `Nomor WhatsApp ini sudah terikat dengan email terverifikasi lain (${boundByPhone.email}). Pengisian untuk akun lain dilarang demi keamanan.`,
-        });
-      }
-    }
-
-    // 4. Resolve Member or Register New
-    let member = boundByPhone || boundByEmail || db.members.find(
-      (m) => m.name.toLowerCase().trim() === formattedName.toLowerCase().trim()
-    );
-
-    let isNewMember = false;
-
-    if (!member) {
-      // Auto-register new member!
-      // But verify that this device is NOT already bound to an existing member!
-      if (deviceId) {
-        const deviceMember = db.members.find((m) => m.deviceId === deviceId);
-        if (deviceMember) {
-          return res.status(403).json({
-            success: false,
-            message: `Perangkat ini sudah terikat dengan anggota ${deviceMember.name}. Anda tidak dapat mendaftarkan anggota baru dari perangkat yang sama.`,
+            message: `Email '${normalizedEmail}' telah terverifikasi atas nama ${boundByEmail.name}. Email terverifikasi tidak boleh digunakan untuk mengisi absensi anggota lain.`,
           });
         }
       }
 
-      isNewMember = true;
-      const numericIds = db.members
-        .map((m) => {
-          const match = m.id.match(/\d+/);
-          return match ? parseInt(match[0], 10) : 0;
-        })
-        .filter((n) => !isNaN(n));
-      const nextNum = numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1;
-      const newId = `A${String(nextNum).padStart(3, '0')}`;
+      // 3. Phone Binding Check
+      const boundByPhone = db.members.find(
+        (m) => normalizeIndonesianPhone(m.phone) === normalizedPhone
+      );
 
-      const validVoice: VoiceType = ['Sopran', 'Alto', 'Tenor', 'Bass'].includes(voice)
-        ? voice
-        : 'Sopran';
+      if (boundByPhone) {
+        const isSameName = boundByPhone.name.toLowerCase().trim() === formattedName.toLowerCase().trim();
+        if (!isSameName) {
+          return res.status(403).json({
+            success: false,
+            message: `Nomor WhatsApp ${normalizedPhone} sudah terdaftar atas nama ${boundByPhone.name}. Pengisian absensi untuk anggota lain tidak diizinkan.`,
+          });
+        }
 
-      member = {
-        id: newId,
-        name: formattedName,
-        voice: validVoice,
-        phone: normalizedPhone,
-        email: normalizedEmail,
-        verifiedEmail: normalizedEmail,
-        deviceId: deviceId || undefined,
-        verifiedAt: new Date().toISOString(),
-        notes: 'Pendaftaran mandiri via portal kehadiran HP (Terverifikasi)',
-        joinDate: new Date().toISOString().split('T')[0],
-        active: true,
+        if (boundByPhone.email && normalizeEmail(boundByPhone.email) !== normalizedEmail) {
+          return res.status(403).json({
+            success: false,
+            message: `Nomor WhatsApp ini sudah terikat dengan email terverifikasi lain (${boundByPhone.email}). Pengisian untuk akun lain dilarang demi keamanan.`,
+          });
+        }
+      }
+
+      // 4. Resolve Member or Register New
+      let member = boundByPhone || boundByEmail || db.members.find(
+        (m) => m.name.toLowerCase().trim() === formattedName.toLowerCase().trim()
+      );
+
+      let isNewMember = false;
+
+      if (!member) {
+        // Auto-register new member!
+        // But verify that this device is NOT already bound to an existing member!
+        if (deviceId) {
+          const deviceMember = db.members.find((m) => m.deviceId === deviceId);
+          if (deviceMember) {
+            return res.status(403).json({
+              success: false,
+              message: `Perangkat ini sudah terikat dengan anggota ${deviceMember.name}. Anda tidak dapat mendaftarkan anggota baru dari perangkat yang sama.`,
+            });
+          }
+        }
+
+        isNewMember = true;
+        const numericIds = db.members
+          .map((m) => {
+            const match = m.id.match(/\d+/);
+            return match ? parseInt(match[0], 10) : 0;
+          })
+          .filter((n) => !isNaN(n));
+        const nextNum = numericIds.length > 0 ? Math.max(...numericIds) + 1 : 1;
+        const newId = `A${String(nextNum).padStart(3, '0')}`;
+
+        const validVoice: VoiceType = ['Sopran', 'Alto', 'Tenor', 'Bass'].includes(voice)
+          ? voice
+          : 'Sopran';
+
+        member = {
+          id: newId,
+          name: formattedName,
+          voice: validVoice,
+          phone: normalizedPhone,
+          email: normalizedEmail,
+          verifiedEmail: normalizedEmail,
+          deviceId: deviceId || undefined,
+          verifiedAt: new Date().toISOString(),
+          notes: 'Pendaftaran mandiri via portal kehadiran HP (Terverifikasi)',
+          joinDate: new Date().toISOString().split('T')[0],
+          active: true,
+          updatedAt: new Date().toISOString(),
+        };
+
+        db.members.push(member);
+
+        // Initialize this new member in all existing sessions as 'Belum'
+        db.sessions.forEach((s) => {
+          if (!s.records[member!.id]) {
+            s.records[member!.id] = {
+              memberId: member!.id,
+              status: 'Belum',
+            };
+          }
+        });
+      } else {
+        // Existing member: Bind email and device if not already set
+        if (!member.email || member.email.trim() === '') {
+          member.email = normalizedEmail;
+        }
+        if (!member.verifiedEmail) {
+          member.verifiedEmail = normalizedEmail;
+        }
+        if (deviceId && !member.deviceId) {
+          member.deviceId = deviceId;
+        }
+        if (!member.verifiedAt) {
+          member.verifiedAt = new Date().toISOString();
+        }
+        if (voice && ['Sopran', 'Alto', 'Tenor', 'Bass'].includes(voice)) {
+          member.voice = voice;
+        }
+        if (!member.phone || member.phone.trim() === '') {
+          member.phone = normalizedPhone;
+        }
+        member.updatedAt = new Date().toISOString();
+      }
+
+      // Record attendance
+      const recordNote = note ? note.trim() : attendanceStatus === 'Hadir' ? 'Hadir via HP' : 'Izin via HP';
+      targetSession.records[member.id] = {
+        memberId: member.id,
+        status: attendanceStatus,
+        note: recordNote,
+        submittedBy: 'self',
+        verifiedEmail: member.verifiedEmail || normalizedEmail,
         updatedAt: new Date().toISOString(),
       };
 
-      db.members.push(member);
-
-      // Initialize this new member in all existing sessions as 'Belum'
-      db.sessions.forEach((s) => {
-        if (!s.records[member!.id]) {
-          s.records[member!.id] = {
-            memberId: member!.id,
-            status: 'Belum',
-          };
-        }
+      // Activity log entry
+      db.logs.unshift({
+        id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        action: isNewMember ? 'Pendaftaran & Absen Mandiri' : 'Absensi Mandiri (HP)',
+        details: `${member.name} (${member.voice}) mencatat status "${attendanceStatus}" pada sesi ${targetSession.title} (Email: ${member.email || normalizedEmail})`,
+        user: member.name,
       });
-    } else {
-      // Existing member: Bind email and device if not already set
-      if (!member.email || member.email.trim() === '') {
-        member.email = normalizedEmail;
-      }
-      if (!member.verifiedEmail) {
-        member.verifiedEmail = normalizedEmail;
-      }
-      if (deviceId && !member.deviceId) {
-        member.deviceId = deviceId;
-      }
-      if (!member.verifiedAt) {
-        member.verifiedAt = new Date().toISOString();
-      }
-      if (voice && ['Sopran', 'Alto', 'Tenor', 'Bass'].includes(voice)) {
-        member.voice = voice;
-      }
-      if (!member.phone || member.phone.trim() === '') {
-        member.phone = normalizedPhone;
-      }
-      member.updatedAt = new Date().toISOString();
+      if (db.logs.length > 100) db.logs = db.logs.slice(0, 100);
+
+      saveDatabase(db);
+
+      return res.json({
+        success: true,
+        message: isNewMember
+          ? `Selamat datang ${member.name}! Anda otomatis terdaftar dan terverifikasi di database koor.`
+          : `Halo ${member.name}, absensi Anda berhasil dicatat sebagai "${attendanceStatus}".`,
+        isNewMember,
+        member,
+        session: {
+          id: targetSession.id,
+          date: targetSession.date,
+          title: targetSession.title,
+          location: targetSession.location,
+        },
+        record: targetSession.records[member.id],
+        submittedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      });
+    } catch (serverErr: any) {
+      console.error('Server error during self-submit:', serverErr);
+      return res.status(500).json({
+        success: false,
+        message: 'Terjadi kendala pada server: ' + (serverErr?.message || 'Gagal menyimpan absensi'),
+      });
     }
-
-    // Record attendance
-    const recordNote = note ? note.trim() : attendanceStatus === 'Hadir' ? 'Hadir via HP' : 'Izin via HP';
-    targetSession.records[member.id] = {
-      memberId: member.id,
-      status: attendanceStatus,
-      note: recordNote,
-      submittedBy: 'self',
-      verifiedEmail: member.verifiedEmail || normalizedEmail,
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Activity log entry
-    db.logs.unshift({
-      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      action: isNewMember ? 'Pendaftaran & Absen Mandiri' : 'Absensi Mandiri (HP)',
-      details: `${member.name} (${member.voice}) mencatat status "${attendanceStatus}" pada sesi ${targetSession.title} (Email: ${member.email || normalizedEmail})`,
-      user: member.name,
-    });
-    if (db.logs.length > 100) db.logs = db.logs.slice(0, 100);
-
-    saveDatabase(db);
-
-    return res.json({
-      success: true,
-      message: isNewMember
-        ? `Selamat datang ${member.name}! Anda otomatis terdaftar dan terverifikasi di database koor.`
-        : `Halo ${member.name}, absensi Anda berhasil dicatat sebagai "${attendanceStatus}".`,
-      isNewMember,
-      member,
-      session: {
-        id: targetSession.id,
-        date: targetSession.date,
-        title: targetSession.title,
-        location: targetSession.location,
-      },
-      record: targetSession.records[member.id],
-      submittedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-    });
   });
 
   // API Route: Reset device & email binding for member (Admin/Pengurus override)
